@@ -1,6 +1,7 @@
 # mpstats_client.py
 
 import os
+import re
 import logging
 import requests
 from dotenv import load_dotenv
@@ -11,17 +12,57 @@ logger = logging.getLogger(__name__)
 API_TOKEN = os.getenv("MPSTATS_API_TOKEN")
 BASE_URL = "https://mpstats.io/api/wb/get"
 
-# Сопоставление названий из API с колонками таблицы
+# Финальное отображение нужных полей
+TARGET_FIELDS = [
+    "sku",
+    "Наименование",
+    "Длина",
+    "Толщина лески",
+    "Вид лески",
+    "Материал лески",
+    "Максимальная нагрузка",
+    "Вид рыбы",
+    "Спортивное назначение",
+    "Цвет"
+]
+
+# Сопоставление вариантов названий с нужным полем
 FIELD_MAPPING = {
     "Толщина лески": "Толщина лески",
     "Толщина (мм)": "Толщина лески",
+    "Толщина": "Толщина лески",
+    "Диаметр": "Толщина лески",
+    "Диаметр лески": "Толщина лески",
+
     "Длина (м)": "Длина",
+    "Длина": "Длина",
+    "Метраж": "Длина",
+    "Намотка": "Длина",
+    "Длина намотки": "Длина",
+
     "Вид лески": "Вид лески",
     "Материал лески": "Материал лески",
     "Максимальная нагрузка": "Максимальная нагрузка",
     "Цвет": "Цвет"
-    # Остальные поля парсятся через парсер или оставляются пустыми
 }
+
+def normalize(text: str) -> str:
+    return text.lower().replace("ё", "е").strip()
+
+def extract_param_value(param_names, param_values, target_field):
+    """Ищет значение по синонимам поля"""
+    value = ""
+    for name, val in zip(param_names, param_values):
+        for source_key, mapped_field in FIELD_MAPPING.items():
+            if mapped_field == target_field and normalize(source_key) in normalize(name):
+                value = val.strip()
+                # Приводим к нужному виду, если это числовое значение
+                if target_field == "Толщина лески" and not re.search(r"мм", value, flags=re.IGNORECASE):
+                    # Если цифры и нет "мм" — добавим
+                    if re.search(r"\d", value):
+                        value = value.replace(",", ".") + " мм"
+                return value
+    return value
 
 def get_versions(sku: str, d1: str, d2: str) -> list:
     url = f"{BASE_URL}/item/{sku}/full_page/versions"
@@ -34,7 +75,6 @@ def get_versions(sku: str, d1: str, d2: str) -> list:
 
 def get_product_info(sku: str, d1: str, d2: str) -> dict:
     versions = get_versions(sku, d1, d2)
-    logger.info(f"Versions for {sku}: {versions}")
     latest = versions[0].get("version") if versions else ""
 
     url = f"{BASE_URL}/item/{sku}/full_page"
@@ -46,27 +86,29 @@ def get_product_info(sku: str, d1: str, d2: str) -> dict:
     data = resp.json()
     logger.info(f"Full page data for {sku}: {data}")
 
-    # Парсим параметры
     param_names = data.get("param_names", [])
     param_values = data.get("param_values", [])
-    raw_attrs = dict(zip(param_names, param_values))
 
-    info = {"sku": sku}
+    info = {
+        "sku": sku,
+        "Наименование": data.get("full_name", ""),
+        "Цвет": data.get("color", ""),
+        "Вид рыбы": "",
+        "Спортивное назначение": ""
+    }
 
-    for source_key, target_col in FIELD_MAPPING.items():
-        for param_name in raw_attrs:
-            if param_name.lower().startswith(source_key.lower()):
-                info[target_col] = raw_attrs[param_name]
-                break
-        else:
-            info[target_col] = ""
+    # Извлекаем нужные значения по маппингу
+    for target_field in TARGET_FIELDS:
+        if target_field in info:
+            continue  # уже заполнено выше
+        info[target_field] = extract_param_value(param_names, param_values, target_field)
 
-    # Прямые поля
-    info["Наименование"] = data.get("full_name", "")
-    info["Цвет"] = info.get("Цвет", data.get("color", ""))
-
-    # Пустые поля, которых нет в API (можно потом добить из parser.py)
-    info["Вид рыбы"] = ""
-    info["Спортивное назначение"] = ""
+    # Fallback: толщина из наименования, если не нашли
+    if not info["Толщина лески"]:
+        name = info["Наименование"]
+        match = re.search(r"([0,\.]{0,1}\d{1,2}[.,]\d{1,2})\s*мм", name, flags=re.IGNORECASE)
+        if match:
+            value = match.group(1).replace(",", ".")
+            info["Толщина лески"] = f"{value} мм"
 
     return info
