@@ -11,10 +11,19 @@ logger = logging.getLogger(__name__)
 API_TOKEN = os.getenv("MPSTATS_API_TOKEN")
 BASE_URL = "https://mpstats.io/api/wb/get"
 
+# Сопоставление названий из API с колонками таблицы
+FIELD_MAPPING = {
+    "Толщина лески": "Толщина лески",
+    "Толщина (мм)": "Толщина лески",
+    "Длина (м)": "Длина",
+    "Вид лески": "Вид лески",
+    "Материал лески": "Материал лески",
+    "Максимальная нагрузка": "Максимальная нагрузка",
+    "Цвет": "Цвет"
+    # Остальные поля парсятся через парсер или оставляются пустыми
+}
+
 def get_versions(sku: str, d1: str, d2: str) -> list:
-    """
-    Возвращает историю версий товара по SKU за период [d1, d2].
-    """
     url = f"{BASE_URL}/item/{sku}/full_page/versions"
     params = {"d1": d1, "d2": d2}
     headers = {"X-Mpstats-TOKEN": API_TOKEN} if API_TOKEN else {}
@@ -28,7 +37,6 @@ def get_product_info(sku: str, d1: str, d2: str) -> dict:
     logger.info(f"Versions for {sku}: {versions}")
     latest = versions[0].get("version") if versions else ""
 
-    # 2) Запрос подробной страницы по этой версии
     url = f"{BASE_URL}/item/{sku}/full_page"
     params = {"version": latest}
     headers = {"X-Mpstats-TOKEN": API_TOKEN} if API_TOKEN else {}
@@ -38,20 +46,27 @@ def get_product_info(sku: str, d1: str, d2: str) -> dict:
     data = resp.json()
     logger.info(f"Full page data for {sku}: {data}")
 
-    # 3) Парсим поля (ключи зависит от формата ответа API!)
-    # В примере ниже я условно беру поля из data["product_info"]
-    info = data.get("product_info", {})
+    # Парсим параметры
+    param_names = data.get("param_names", [])
+    param_values = data.get("param_values", [])
+    raw_attrs = dict(zip(param_names, param_values))
 
-    return {
-        "sku":                          sku,
-        "Наименование":                 info.get("name", ""),
-        "Длина":                        info.get("length", ""),
-        "Толщина лески":                info.get("thickness", ""),
-        "Вид лески":                    info.get("type", ""),
-        "Материал лески":               info.get("material", ""),
-        "Максимальная нагрузка":        info.get("max_load", ""),
-        "Вид рыбы":                     info.get("fish_type", ""),
-        "Спортивное назначение":        info.get("sport_usage", ""),
-        "Цвет":                         info.get("color", ""),
-    }
+    info = {"sku": sku}
 
+    for source_key, target_col in FIELD_MAPPING.items():
+        for param_name in raw_attrs:
+            if param_name.lower().startswith(source_key.lower()):
+                info[target_col] = raw_attrs[param_name]
+                break
+        else:
+            info[target_col] = ""
+
+    # Прямые поля
+    info["Наименование"] = data.get("full_name", "")
+    info["Цвет"] = info.get("Цвет", data.get("color", ""))
+
+    # Пустые поля, которых нет в API (можно потом добить из parser.py)
+    info["Вид рыбы"] = ""
+    info["Спортивное назначение"] = ""
+
+    return info
