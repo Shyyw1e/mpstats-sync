@@ -1,6 +1,7 @@
 import os
 import logging
 from google_auth import get_sheets_service
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -52,15 +53,40 @@ class SheetsClient:
         ).execute().get("values", [])
         return [row[0] for row in vals if row]
 
+    import time
+
     def write_rows(self, sheet_name: str, start_row: int, rows: list):
-        start_cell = f"A{start_row}"
-        logger.debug(f"Writing {len(rows)} rows to '{sheet_name}' at {start_cell}")
-        self.values.update(
-            spreadsheetId=self.spreadsheet_id,
-            range=f"{sheet_name}!{start_cell}",
-            valueInputOption="RAW",
-            body={"values": rows}
-        ).execute()
+        batch_size = 100  # ↓ уменьшили
+        total = len(rows)
+        logger.info(f"Запись {total} строк в таблицу '{sheet_name}' порциями по {batch_size}")
+
+        for i in range(0, total, batch_size):
+            chunk = rows[i:i + batch_size]
+            row_num = start_row + i
+            start_cell = f"A{row_num}"
+            logger.info(f"Пишем строки {row_num} — {row_num + len(chunk) - 1}")
+
+            # retry-петля
+            for attempt in range(3):
+                try:
+                    self.values.update(
+                        spreadsheetId=self.spreadsheet_id,
+                        range=f"{sheet_name}!{start_cell}",
+                        valueInputOption="RAW",
+                        body={"values": chunk}
+                    ).execute()
+                    break  # успешно — выходим из retry
+                except Exception as e:
+                    logger.warning(
+                        f"Попытка {attempt + 1}/3: ошибка при записи строк {row_num}-{row_num + len(chunk) - 1}: {e}")
+                    if attempt == 2:
+                        raise
+                    time.sleep(2)
+
+            # пауза между чанками
+            if i + batch_size < total:
+                logger.debug("Ожидание 1 сек перед следующим блоком...")
+                time.sleep(1)
 
     def _get_sheet_id(self, sheet_name: str) -> int:
         meta = self.spreadsheets.get(  # снова — как атрибут
