@@ -56,8 +56,6 @@ class SheetsClient:
         ).execute().get("values", [])
         return [row[0] for row in vals if row]
 
-    import time
-
     def write_rows(self, sheet_name: str, start_row: int, rows: list):
         batch_size = 100  # ↓ уменьшили
         total = len(rows)
@@ -91,6 +89,8 @@ class SheetsClient:
                 logger.debug("Ожидание 1 сек перед следующим блоком...")
                 time.sleep(1)
 
+
+    
     def _get_sheet_id(self, sheet_name: str) -> int:
         meta = self.spreadsheets.get(  # снова — как атрибут
             spreadsheetId=self.spreadsheet_id
@@ -100,3 +100,18 @@ class SheetsClient:
             if props.get("title") == sheet_name:
                 return props.get("sheetId")
         raise ValueError(f"Sheet '{sheet_name}' not found")
+
+
+    def clear_rows(self, sheet_name: str, start_row: int, num_rows: int):
+        """
+        Очищает заданный диапазон строк на листе.
+        """
+        end_row = start_row + num_rows - 1
+        range_to_clear = f"{sheet_name}!A{start_row}:Z{end_row}"
+
+        logger.info(f"Очищаем диапазон {range_to_clear}")
+        self.values.clear(
+            spreadsheetId=self.spreadsheet_id,
+            range=range_to_clear,
+        ).execute()
+

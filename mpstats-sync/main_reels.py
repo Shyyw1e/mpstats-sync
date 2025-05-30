@@ -32,7 +32,7 @@ def main():
 
     today = datetime.date.today()
     d2 = today.strftime("%Y-%m-%d")
-    d1 = (today - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+    d1 = (today - datetime.timedelta(days=10000)).strftime("%Y-%m-%d")  # 2 года назад
 
     client.ensure_headers(sheet, headers)
     skus = client.read_column(sheet, "sku")
@@ -49,12 +49,15 @@ def main():
             logger.info(f"Данные по SKU {sku}: {info}")
             row = [info.get(col, "") for col in headers]
 
-            if any(cell for cell in row[1:]):  # если не только sku
+            if any(cell for cell in row[1:]):  # если есть хоть одно значение кроме sku
                 rows.append(row)
             else:
                 logger.warning(f"Пустой результат по SKU {sku}")
         except Exception as e:
             logger.error(f"Ошибка при обработке SKU {sku}: {e}")
+
+    # Чистим строки заранее, чтобы исключить наложение старых значений
+    client.clear_rows(sheet, start_row=2, num_rows=1500)  # если больше 1500 sku — увеличь лимит
 
     if rows:
         client.write_rows(sheet, start_row=2, rows=rows)
