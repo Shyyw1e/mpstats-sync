@@ -12,8 +12,6 @@ ENV PATH="/usr/local/go/bin:$PATH"
 WORKDIR /app
 
 COPY . .
-COPY mpstats-sync-661219ce08cd.json mpstats-sync/mpstats-sync-661219ce08cd.json
-
 
 RUN pip install --no-cache-dir -r mpstats-sync/requirements.txt
 
