@@ -1,11 +1,11 @@
-# mpstats_client.py
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
 
 import os
 import re
 import logging
 import requests
-from dotenv import load_dotenv
-load_dotenv()
+
 
 logger = logging.getLogger(__name__)
 

@@ -2,8 +2,8 @@
 
 import logging
 import datetime
-from dotenv import load_dotenv
-load_dotenv()
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
 
 from sheets_client import SheetsClient
 from mpstats_reels import get_reel_info
