@@ -43,6 +43,22 @@ func main() {
 		mainHandler(w, r, "mpstats-sync/main_reels.py")
 	})
 
+	http.HandleFunc("/sync/spoons", func (w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+			return
+		}
+		mainHandler(w, r, "mpstats-sync/main_spoons.py")
+	})
+
+	http.HandleFunc("/sync/wobblers", func (w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+			return
+		}
+		mainHandler(w, r, "mpstats-sync/main_wobblers.py")
+	})
+
 	http.HandleFunc("/health", func (w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok)"))
 	})

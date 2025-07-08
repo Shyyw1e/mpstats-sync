@@ -10,9 +10,7 @@ logger = logging.getLogger(__name__)
 
 class SheetsClient:
     def __init__(self, spreadsheet_id: str = None):
-        # получаем service из google_auth
         self.service = get_sheets_service()
-        # В твоём случае у service есть атрибут spreadsheets, а не метод spreadsheets()
         self.spreadsheets = self.service.spreadsheets()
         self.values = self.spreadsheets.values()
         self.spreadsheet_id = spreadsheet_id or os.getenv("SPREADSHEET_ID")
@@ -33,7 +31,6 @@ class SheetsClient:
                 }
             }]
         }
-        # Теперь обращаемся к атрибуту, а не к несуществующему методу
         self.spreadsheets.batchUpdate(
             spreadsheetId=self.spreadsheet_id,
             body=body

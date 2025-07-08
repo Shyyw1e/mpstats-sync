@@ -56,9 +56,7 @@ def extract_param_value(param_names, param_values, target_field):
         for source_key, mapped_field in FIELD_MAPPING.items():
             if mapped_field == target_field and normalize(source_key) in normalize(name):
                 value = val.strip()
-                # Приводим к нужному виду, если это числовое значение
                 if target_field == "Толщина лески" and not re.search(r"мм", value, flags=re.IGNORECASE):
-                    # Если цифры и нет "мм" — добавим
                     if re.search(r"\d", value):
                         value = value.replace(",", ".") + " мм"
                 return value

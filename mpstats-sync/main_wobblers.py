@@ -4,7 +4,7 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 from sheets_client import SheetsClient
-from mpstats_reels import get_reel_info
+from mpstats_wobblers import get_wobbler_info
 from utils import retry
 
 logging.basicConfig(
@@ -14,28 +14,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def main():
-    logger.info("Запуск синхронизации для катушек")
+    logger.info("Запуск синхронизации для Воблеров")
 
     client = SheetsClient()
-    sheet = "Катушка"
+    sheet = "Воблеры"
 
     headers = [
-        "sku",
-        "Вид катушки",
-        "Емкость катушки",
-        "Количество подшипников (шт.)",
-        "Передаточное отношение",
-        "Размер шпули"
+        "sku", "Наименование", "Вид воблера", "Вид крючка", "Плавучесть",
+        "Вес товара без упаковки (г)", "Длина предмета (см)", "Максимальное заглубление",
+        "Минимальное заглубление", "Комплектация", "Спортивное назначение", "Цвет"
     ]
 
     today = datetime.date.today()
     d2 = today.strftime("%Y-%m-%d")
-    d1 = (today - datetime.timedelta(days=10000)).strftime("%Y-%m-%d")  # 2 года назад
+    d1 = (today - datetime.timedelta(days=10000)).strftime("%Y-%m-%d")
 
     client.ensure_headers(sheet, headers)
     skus = client.read_column(sheet, "sku")
     logger.info(f"Найдено артикулов: {len(skus)}")
-    logger.info(f"Пример последних SKU: {skus[-5:]}")
 
     rows = []
     for sku in skus:
@@ -43,16 +39,16 @@ def main():
         if not sku:
             continue
         try:
-            info = retry(get_reel_info, sku=sku, d1=d1, d2=d2)
+            info = retry(get_wobbler_info, sku=sku, d1=d1, d2=d2)
             logger.info(f"Данные по SKU {sku}: {info}")
             row = [info.get(col, "") for col in headers]
 
-            if any(cell for cell in row[1:]):  # если есть хоть одно значение кроме sku
+            if any(cell for cell in row[1:]):
                 rows.append(row)
             else:
-                logger.warning(f"Пустой результат по SKU {sku}")
+                logger.warning(f"Пустой результат для {sku}")
         except Exception as e:
-            logger.error(f"Ошибка при обработке SKU {sku}: {e}")
+            logger.exception(f"Ошибка при обработке SKU {sku}: {e}")
 
     client.clear_rows(sheet, start_row=2, num_rows=10000)  # если больше 1500 sku — увеличь лимит
 
@@ -66,3 +62,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
